@@ -6,7 +6,7 @@ import * as Airtable from './airtable.js';
 import {
   MESES, CATEGORIAS, colorForCategoria, enrichAll,
   computeHeaderKPIs, computeMonthComparison,
-  gastoPorDia, gastoPorMes, gastoPorAno, cashbackAcumulado, rankingComercios,
+  gastoPorDia, gastoPorMes, gastoPorAno, cashbackAcumulado, rankingComercios, gastoPorCategoria,
   formatCOP, formatPct, formatFechaLarga, currentPeriod,
 } from './calculations.js';
 import * as Charts from './charts.js';
@@ -173,8 +173,10 @@ function renderCharts(filtered) {
   const { topN } = currentFilters();
   const ranking = rankingComercios(filtered, topN);
   Charts.renderTopComercios('chartTopComercios', ranking.top);
-  Charts.renderDonutComercios('chartDonutComercios', ranking.top, ranking.resto);
   renderComerciosTable(ranking.all);
+
+  const categorias = gastoPorCategoria(filtered);
+  Charts.renderDonutCategorias('chartDonutCategorias', categorias.all);
 }
 
 function renderComerciosTable(all) {
