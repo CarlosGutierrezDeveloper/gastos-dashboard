@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mis Gastos — Dashboard</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ MODAL: CONFIGURACIÓN AIRTABLE ============ -->
+  <div id="configModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Conectar con Airtable</h2>
+      </div>
+      <p class="modal-desc">
+        Ingresa tus credenciales de Airtable. Se guardan únicamente en este navegador
+        (localStorage) — nunca se suben al código ni a ningún servidor externo.
+      </p>
+
+      <label class="field-label">Personal Access Token</label>
+      <input id="cfgToken" class="input" type="password" placeholder="patXXXXXXXXXXXXXX.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+
+      <label class="field-label">Base ID</label>
+      <input id="cfgBaseId" class="input" type="text" placeholder="appXXXXXXXXXXXXXX" autocomplete="off" />
+
+      <label class="field-label">Nombre de la tabla</label>
+      <input id="cfgTableName" class="input" type="text" placeholder="Gastos" value="Gastos" autocomplete="off" />
+
+      <div id="cfgError" class="form-error hidden"></div>
+      <div id="cfgSuccess" class="form-success hidden"></div>
+
+      <details class="help-details">
+        <summary>¿Cómo obtengo estos datos?</summary>
+        <ol>
+          <li>Ve a <strong>airtable.com/create/tokens</strong> y crea un token con permisos
+            <code>data.records:read</code> y <code>data.records:write</code> sobre tu base.</li>
+          <li>El <strong>Base ID</strong> aparece en la URL de tu base: airtable.com/<strong>appXXXXXXXXXXXXXX</strong>/...</li>
+          <li>El nombre de la tabla debe coincidir exactamente (ej: "Gastos").</li>
+        </ol>
+      </details>
+
+      <div class="modal-actions">
+        <button id="cfgTestBtn" class="btn btn-secondary">Probar conexión</button>
+        <button id="cfgSaveBtn" class="btn btn-primary">Guardar y continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HEADER ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">$</span>
+      <span class="brand-text">Mis Gastos</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="movimientos">Movimientos</button>
+    </nav>
+    <div class="topbar-actions">
+      <button id="settingsBtn" class="icon-btn" title="Configuración de Airtable">⚙</button>
+      <button id="refreshBtn" class="icon-btn" title="Actualizar datos">⟳</button>
+      <button id="exportBtn" class="btn btn-outline">⬇ Exportar</button>
+      <button id="addExpenseBtn" class="btn btn-primary">+ Agregar Gasto</button>
+    </div>
+  </header>
+
+  <!-- ============ FILTROS GLOBALES ============ -->
+  <section class="filters-bar">
+    <div class="filter-group">
+      <label>Año</label>
+      <select id="filterYear"><option value="">Todos</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Mes</label>
+      <select id="filterMonth"><option value="">Todos</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Desde</label>
+      <input id="filterFrom" type="date" class="input-sm" />
+    </div>
+    <div class="filter-group">
+      <label>Hasta</label>
+      <input id="filterTo" type="date" class="input-sm" />
+    </div>
+    <div class="filter-group grow">
+      <label>Comercio</label>
+      <input id="filterComercio" type="text" class="input-sm" placeholder="Buscar comercio..." />
+    </div>
+    <div class="filter-group">
+      <label>Categoría</label>
+      <select id="filterCategoria"><option value="">Todas</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Importe mín</label>
+      <input id="filterMin" type="number" class="input-sm" placeholder="$0" />
+    </div>
+    <div class="filter-group">
+      <label>Importe máx</label>
+      <input id="filterMax" type="number" class="input-sm" placeholder="$999.999" />
+    </div>
+    <div class="filter-group">
+      <label>Top N</label>
+      <input id="filterTopN" type="number" class="input-sm input-xs" value="10" min="1" max="50" />
+    </div>
+    <button id="clearFiltersBtn" class="btn btn-ghost">Limpiar filtros</button>
+  </section>
+
+  <!-- ============ TAB: DASHBOARD ============ -->
+  <main id="tabDashboard" class="tab-content active">
+
+    <section class="kpi-grid" id="kpiGrid">
+      <!-- las tarjetas se inyectan desde ui.js -->
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h3>Evolución Temporal</h3>
+      </div>
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <h4>Gasto diario</h4>
+          <div class="chart-wrap"><canvas id="chartGastoDiario"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h4>Cashback acumulado</h4>
+            <div class="segmented" id="cashbackGranularity">
+              <button data-g="day" class="active">Día</button>
+              <button data-g="month">Mes</button>
+              <button data-g="year">Año</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chartCashbackAcumulado"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <h4>Comparativo mensual de gasto</h4>
+          <div class="chart-wrap"><canvas id="chartComparativoMensual"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4>Comparativo anual de gasto</h4>
+          <div class="chart-wrap"><canvas id="chartComparativoAnual"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h3>Análisis por Comercio</h3>
+      </div>
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <h4>Top comercios</h4>
+          <div class="chart-wrap"><canvas id="chartTopComercios"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h4>Participación por comercio</h4>
+          <div class="chart-wrap"><canvas id="chartDonutComercios"></canvas></div>
+        </div>
+      </div>
+      <div class="table-card">
+        <h4>Detalle por comercio</h4>
+        <div class="table-scroll">
+          <table id="tableComercios">
+            <thead>
+              <tr><th>Comercio</th><th>Gasto total</th><th># Compras</th><th>Cashback total</th><th>% del total</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h3>Consulta por Mes y Año</h3>
+      </div>
+      <div class="query-controls">
+        <div class="filter-group">
+          <label>Año a consultar</label>
+          <select id="queryYear"></select>
+        </div>
+        <div class="filter-group">
+          <label>Mes a consultar</label>
+          <select id="queryMonth"></select>
+        </div>
+      </div>
+      <div id="queryResult" class="kpi-grid"></div>
+    </section>
+  </main>
+
+  <!-- ============ TAB: MOVIMIENTOS ============ -->
+  <main id="tabMovimientos" class="tab-content">
+    <div class="table-card">
+      <div class="table-card-header">
+        <h4>Historial de Movimientos</h4>
+        <span id="movimientosCount" class="muted-text"></span>
+      </div>
+      <div class="table-scroll">
+        <table id="tableMovimientos">
+          <thead>
+            <tr>
+              <th data-sort="fecha">Fecha ⇅</th>
+              <th data-sort="comercio">Comercio ⇅</th>
+              <th data-sort="categoria">Categoría ⇅</th>
+              <th data-sort="valor">Valor ⇅</th>
+              <th>Cashback Rappi</th>
+              <th>Cashback BdB</th>
+              <th>Cashback Total</th>
+              <th>Mes</th>
+              <th>Año</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="movimientosBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ MODAL: AGREGAR / EDITAR GASTO ============ -->
+  <div id="expenseModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="expenseModalTitle">Agregar Nuevo Gasto</h2>
+        <button class="modal-close" id="expenseModalClose" type="button">×</button>
+      </div>
+      <p class="modal-desc">Completa los detalles del gasto</p>
+      <form id="expenseForm">
+        <input type="hidden" id="fId" />
+
+        <label class="field-label">Monto</label>
+        <input id="fValor" class="input" type="text" inputmode="numeric" autocomplete="off" placeholder="$ 0" required />
+
+        <label class="field-label">Comercio</label>
+        <input id="fComercio" class="input" type="text" placeholder="Ej: Rappi, Éxito, D1..." required />
+
+        <label class="field-label">Categoría</label>
+        <div class="dropdown" id="fCategoriaDropdown">
+          <button type="button" class="dropdown-trigger input" id="fCategoriaTrigger">
+            <span class="trigger-content">
+              <span class="cat-dot hidden" id="fCategoriaDot"></span>
+              <span id="fCategoriaLabel" class="muted-text">Selecciona una categoría</span>
+            </span>
+            <span class="dropdown-caret">⌄</span>
+          </button>
+          <div class="dropdown-menu hidden" id="fCategoriaMenu"></div>
+          <input type="hidden" id="fCategoria" value="" />
+        </div>
+
+
+        <label class="field-label">Fecha</label>
+        <input id="fFecha" class="input" type="date" required />
+
+        <label class="checkbox-label">
+          <input id="fAplicaCashback" type="checkbox" checked />
+          Esta compra genera cashback (Rappi 1% + Banco de Bogotá 5%)
+        </label>
+
+        <div id="expenseFormError" class="form-error hidden"></div>
+
+        <div class="modal-actions">
+          <button type="button" id="expenseCancelBtn" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" id="expenseSubmitBtn" class="btn btn-primary">Agregar Gasto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: CONFIRMAR ELIMINAR ============ -->
+  <div id="confirmModal" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header"><h2>¿Eliminar movimiento?</h2></div>
+      <p class="modal-desc" id="confirmModalText">Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button id="confirmCancelBtn" class="btn btn-secondary">Cancelar</button>
+        <button id="confirmDeleteBtn" class="btn btn-danger">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <span id="loadingText">Cargando datos...</span>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
