@@ -199,6 +199,27 @@ export function rankingComercios(records, topN = 10) {
   };
 }
 
+// Agrupa el gasto por categoría (para el donut y el detalle de "Participación por Categoría").
+// A diferencia de rankingComercios, aquí no hay Top N / "Otros": las categorías son un
+// conjunto fijo y pequeño (ver CATEGORIAS), así que se muestran todas.
+export function gastoPorCategoria(records) {
+  const map = new Map();
+  for (const r of records) {
+    const key = r.categoria || 'Otros';
+    const cur = map.get(key) || { categoria: key, total: 0, compras: 0, cashback: 0 };
+    cur.total += r.valor;
+    cur.compras += 1;
+    cur.cashback += r.cashbackTotal;
+    map.set(key, cur);
+  }
+  const totalGeneral = sum(records, 'valor');
+  const all = [...map.values()]
+    .map((c) => ({ ...c, participacion: totalGeneral ? c.total / totalGeneral : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  return { all, totalGeneral };
+}
+
 export function formatCOP(valor) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
