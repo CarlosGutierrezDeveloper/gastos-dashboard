@@ -2,7 +2,7 @@
 // Encapsula la creación/actualización de todas las gráficas con Chart.js.
 // Colores: tonos cálidos para gasto, tonos verdes para cashback.
 
-import { MESES } from './calculations.js';
+import { MESES, colorForCategoria } from './calculations.js';
 
 const instances = {};
 
@@ -224,13 +224,61 @@ export function renderTopComercios(canvasId, top) {
   });
 }
 
-const DONUT_PALETTE = ['#22c55e', '#f97316', '#06b6d4', '#f59e0b', '#8b5cf6', '#ef4444', '#eab308', '#14b8a6', '#ec4899', '#64748b'];
+// Porcentaje mínimo (sobre el total) que debe tener una rebanada para que su
+// etiqueta se dibuje dentro del donut. Evita saturar el gráfico cuando hay
+// categorías con participación casi nula (la info sigue disponible en la
+// leyenda y en el tooltip).
+const MIN_SLICE_LABEL_PERCENT = 0.035; // 3.5%
 
-export function renderDonutComercios(canvasId, top, resto) {
+// Plugin propio de Chart.js: dibuja el % de cada categoría centrado sobre su
+// rebanada del donut. Se registra solo en este gráfico (no de forma global).
+const percentLabelsPlugin = {
+  id: 'percentLabelsCategorias',
+  afterDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    const dataset = chart.data.datasets[0];
+    const total = dataset.data.reduce((a, b) => a + b, 0);
+    if (!total) return;
+
+    const { ctx } = chart;
+    ctx.save();
+    meta.data.forEach((arc, i) => {
+      if (arc.hidden) return;
+      const value = dataset.data[i];
+      const pct = value / total;
+      if (pct < MIN_SLICE_LABEL_PERCENT) return;
+
+      const { startAngle, endAngle, innerRadius, outerRadius, x, y } = arc.getProps(
+        ['startAngle', 'endAngle', 'innerRadius', 'outerRadius', 'x', 'y'],
+        true,
+      );
+      const midAngle = (startAngle + endAngle) / 2;
+      const midRadius = (innerRadius + outerRadius) / 2;
+      const px = x + Math.cos(midAngle) * midRadius;
+      const py = y + Math.sin(midAngle) * midRadius;
+
+      const label = `${(pct * 100).toFixed(1)}%`;
+      ctx.font = "700 12px 'Inter', system-ui, sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Contorno oscuro para que el % se lea bien sobre cualquier color de fondo
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.strokeText(label, px, py);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, px, py);
+    });
+    ctx.restore();
+  },
+};
+
+export function renderDonutCategorias(canvasId, categorias) {
   destroyIfExists(canvasId);
   const ctx = document.getElementById(canvasId).getContext('2d');
-  const labels = [...top.map((c) => c.comercio), ...(resto > 0 ? ['Otros'] : [])];
-  const values = [...top.map((c) => c.total), ...(resto > 0 ? [resto] : [])];
+  const labels = categorias.map((c) => c.categoria);
+  const values = categorias.map((c) => c.total);
+  const colors = categorias.map((c) => colorForCategoria(c.categoria));
+  const total = values.reduce((a, b) => a + b, 0);
 
   instances[canvasId] = new Chart(ctx, {
     type: 'doughnut',
@@ -238,7 +286,7 @@ export function renderDonutComercios(canvasId, top, resto) {
       labels,
       datasets: [{
         data: values,
-        backgroundColor: labels.map((_, i) => DONUT_PALETTE[i % DONUT_PALETTE.length]),
+        backgroundColor: colors,
         borderColor: '#0d0d0d',
         borderWidth: 2,
       }],
@@ -246,14 +294,46 @@ export function renderDonutComercios(canvasId, top, resto) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '65%',
+      cutout: '62%',
       plugins: {
         legend: {
           position: 'right',
-          labels: { color: '#e5e7eb', font: BASE_FONT, boxWidth: 10, padding: 10 },
+          labels: {
+            color: '#e5e7eb',
+            font: BASE_FONT,
+            boxWidth: 10,
+            padding: 10,
+            // Leyenda detallada: nombre de categoría + su % de participación
+            generateLabels: (chart) => {
+              const { data } = chart;
+              const meta = chart.getDatasetMeta(0);
+              return data.labels.map((label, i) => {
+                const style = meta.controller.getStyle(i, true);
+                const value = data.datasets[0].data[i];
+                const pct = total ? (value / total) * 100 : 0;
+                return {
+                  text: `${label}  ·  ${pct.toFixed(1)}%`,
+                  fillStyle: style.backgroundColor,
+                  strokeStyle: style.borderColor,
+                  lineWidth: style.borderWidth,
+                  pointStyle: style.pointStyle,
+                  hidden: !chart.getDataVisibility(i),
+                  index: i,
+                };
+              });
+            },
+          },
         },
-        tooltip: { callbacks: { label: (c) => `${c.label}: ${compactCOP(c.parsed)}` } },
+        tooltip: {
+          callbacks: {
+            label: (c) => {
+              const pct = total ? (c.parsed / total) * 100 : 0;
+              return `${c.label}: ${compactCOP(c.parsed)} (${pct.toFixed(1)}%)`;
+            },
+          },
+        },
       },
     },
+    plugins: [percentLabelsPlugin],
   });
 }
