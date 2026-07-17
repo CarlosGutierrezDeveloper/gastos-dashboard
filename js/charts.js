@@ -224,6 +224,12 @@ export function renderTopComercios(canvasId, top) {
   });
 }
 
+// Fuente exacta usada en style.css (regla html, body) — se usa aquí para que
+// el texto dibujado en canvas (leyenda y % dentro del donut) coincida con la
+// tipografía real del resto del dashboard, en vez de depender del fallback
+// genérico "system-ui".
+const DONUT_FONT_FAMILY = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
 // Porcentaje mínimo (sobre el total) que debe tener una rebanada para que su
 // etiqueta se dibuje dentro del donut. Evita saturar el gráfico cuando hay
 // categorías con participación casi nula (la info sigue disponible en la
@@ -258,14 +264,15 @@ const percentLabelsPlugin = {
       const py = y + Math.sin(midAngle) * midRadius;
 
       const label = `${(pct * 100).toFixed(1)}%`;
-      ctx.font = "700 12px 'Inter', system-ui, sans-serif";
+      ctx.font = `13px ${DONUT_FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       // Contorno oscuro para que el % se lea bien sobre cualquier color de fondo
+      // (la tabla no lo necesita porque su fondo es siempre uniforme)
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.strokeText(label, px, py);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#f4f4f5';
       ctx.fillText(label, px, py);
     });
     ctx.restore();
@@ -299,8 +306,8 @@ export function renderDonutCategorias(canvasId, categorias) {
         legend: {
           position: 'right',
           labels: {
-            color: '#e5e7eb',
-            font: BASE_FONT,
+            color: '#f4f4f5',
+            font: { family: DONUT_FONT_FAMILY, size: 13.5, weight: '600' },
             boxWidth: 10,
             padding: 10,
             // Leyenda detallada: nombre de categoría + su % de participación
