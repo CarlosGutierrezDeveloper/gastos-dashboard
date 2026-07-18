@@ -294,7 +294,7 @@ export function renderDonutCategorias(canvasId, categorias) {
       datasets: [{
         data: values,
         backgroundColor: colors,
-        borderColor: '#0d0d0d',
+        borderColor: '#ffffff',
         borderWidth: 2,
       }],
     },
@@ -324,6 +324,7 @@ export function renderDonutCategorias(canvasId, categorias) {
                   strokeStyle: style.borderColor,
                   lineWidth: style.borderWidth,
                   pointStyle: style.pointStyle,
+                  fontColor: '#f4f4f5',
                   hidden: !chart.getDataVisibility(i),
                   index: i,
                 };
