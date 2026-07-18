@@ -17,6 +17,8 @@ let cashbackGranularity = 'day';
 let editingId = null;
 let deletingId = null;
 let sortState = { key: 'fecha', dir: 'desc' };
+let movimientosPage = 1;
+const MOVIMIENTOS_PAGE_SIZE = 50;
 
 const $ = (id) => document.getElementById(id);
 
@@ -229,10 +231,18 @@ function renderMovimientosTable(filtered) {
 
   if (!sorted.length) {
     tbody.innerHTML = `<tr><td colspan="10" class="muted-text">No hay movimientos que coincidan con los filtros.</td></tr>`;
+    renderPaginationControls(0, 1);
     return;
   }
 
-  tbody.innerHTML = sorted.map((r) => `
+  const totalPages = Math.max(1, Math.ceil(sorted.length / MOVIMIENTOS_PAGE_SIZE));
+  if (movimientosPage > totalPages) movimientosPage = totalPages;
+  if (movimientosPage < 1) movimientosPage = 1;
+
+  const start = (movimientosPage - 1) * MOVIMIENTOS_PAGE_SIZE;
+  const pageRecords = sorted.slice(start, start + MOVIMIENTOS_PAGE_SIZE);
+
+  tbody.innerHTML = pageRecords.map((r) => `
     <tr>
       <td>${formatFechaLarga(r.fecha)}</td>
       <td>${escapeHtml(r.comercio)}</td>
@@ -253,6 +263,22 @@ function renderMovimientosTable(filtered) {
 
   tbody.querySelectorAll('.edit-btn').forEach((btn) => btn.addEventListener('click', () => openEditExpense(btn.dataset.id)));
   tbody.querySelectorAll('.del-btn').forEach((btn) => btn.addEventListener('click', () => openDeleteConfirm(btn.dataset.id)));
+
+  renderPaginationControls(sorted.length, totalPages, start, pageRecords.length);
+}
+
+function renderPaginationControls(totalRecords, totalPages, start = 0, pageCount = 0) {
+  const info = $('paginationInfo');
+  const prevBtn = $('paginationPrev');
+  const nextBtn = $('paginationNext');
+  if (!info || !prevBtn || !nextBtn) return;
+
+  info.textContent = totalRecords
+    ? `Mostrando ${start + 1}–${start + pageCount} de ${totalRecords} · Página ${movimientosPage} de ${totalPages}`
+    : 'Sin movimientos';
+
+  prevBtn.disabled = movimientosPage <= 1;
+  nextBtn.disabled = movimientosPage >= totalPages;
 }
 
 function escapeHtml(str) {
@@ -490,6 +516,7 @@ function wireFilters() {
   const ids = ['filterYear', 'filterMonth', 'filterFrom', 'filterTo', 'filterComercio', 'filterCategoria'];
   ids.forEach((id) => $(id).addEventListener('input', () => {
     const filtered = applyFilters(allRecords);
+    movimientosPage = 1;
     renderKPIHeader();
     renderCharts(filtered);
     renderMovimientosTable(filtered);
@@ -498,6 +525,7 @@ function wireFilters() {
   $('clearFiltersBtn').addEventListener('click', () => {
     ids.forEach((id) => { $(id).value = ''; });
     const filtered = applyFilters(allRecords);
+    movimientosPage = 1;
     renderKPIHeader();
     renderCharts(filtered);
     renderMovimientosTable(filtered);
@@ -527,8 +555,21 @@ function wireSortableHeaders() {
     th.addEventListener('click', () => {
       const key = th.dataset.sort;
       sortState = { key, dir: sortState.key === key && sortState.dir === 'asc' ? 'desc' : 'asc' };
+      movimientosPage = 1;
       renderMovimientosTable(applyFilters(allRecords));
     });
+  });
+}
+
+function wirePagination() {
+  $('paginationPrev').addEventListener('click', () => {
+    if (movimientosPage <= 1) return;
+    movimientosPage -= 1;
+    renderMovimientosTable(applyFilters(allRecords));
+  });
+  $('paginationNext').addEventListener('click', () => {
+    movimientosPage += 1;
+    renderMovimientosTable(applyFilters(allRecords));
   });
 }
 
@@ -590,6 +631,7 @@ export async function initApp() {
   wireTabs();
   wireFilters();
   wireSortableHeaders();
+  wirePagination();
   wireExpenseModal();
   wireConfirmModal();
   wireConfigModal();
