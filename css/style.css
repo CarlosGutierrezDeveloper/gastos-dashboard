@@ -99,6 +99,7 @@ input, select { font-family: inherit; }
 .filter-group { display: flex; flex-direction: column; gap: 5px; min-width: 110px; }
 .filter-group.grow { flex: 1; min-width: 180px; }
 .filter-group label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.filters-clear { margin-left: auto; align-self: flex-end; }
 
 .input, .input-sm, select {
   background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
