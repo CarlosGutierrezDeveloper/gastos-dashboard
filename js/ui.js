@@ -38,6 +38,8 @@ function openModal(id) { $(id).classList.remove('hidden'); }
 function closeModal(id) { $(id).classList.add('hidden'); }
 
 // ---------- FILTROS ----------
+const DEFAULT_TOP_N = 10; // "Top N" ya no es un campo editable en la barra de filtros
+
 function currentFilters() {
   return {
     year: $('filterYear').value,
@@ -46,23 +48,22 @@ function currentFilters() {
     to: $('filterTo').value,
     comercio: $('filterComercio').value.trim().toLowerCase(),
     categoria: $('filterCategoria').value,
-    min: $('filterMin').value,
-    max: $('filterMax').value,
-    topN: Number($('filterTopN').value) || 10,
+    topN: DEFAULT_TOP_N,
   };
 }
 
-function applyFilters(records) {
+// includePeriod=false se usa para los KPI de cabecera: se filtra por todo
+// (comercio, categoría, desde/hasta) EXCEPTO año/mes, porque esos dos los
+// resuelve computeHeaderKPIs (actual vs. mes anterior).
+function applyFilters(records, { includePeriod = true } = {}) {
   const f = currentFilters();
   return records.filter((r) => {
-    if (f.year && String(r.year) !== f.year) return false;
-    if (f.month && String(r.month) !== f.month) return false;
+    if (includePeriod && f.year && String(r.year) !== f.year) return false;
+    if (includePeriod && f.month && String(r.month) !== f.month) return false;
     if (f.from && r.fecha < f.from) return false;
     if (f.to && r.fecha > f.to) return false;
     if (f.comercio && !r.comercio.toLowerCase().includes(f.comercio)) return false;
     if (f.categoria && r.categoria !== f.categoria) return false;
-    if (f.min && r.valor < Number(f.min)) return false;
-    if (f.max && r.valor > Number(f.max)) return false;
     return true;
   });
 }
@@ -126,7 +127,10 @@ function trendSub(diferencia, { positivoEsBueno = true } = {}) {
 }
 
 function renderKPIHeader() {
-  const k = computeHeaderKPIs(allRecords);
+  const f = currentFilters();
+  const baseForKPI = applyFilters(allRecords, { includePeriod: false });
+  const periodOverride = (f.year && f.month) ? { year: Number(f.year), month: Number(f.month) } : null;
+  const k = computeHeaderKPIs(baseForKPI, periodOverride);
   const dif = trendSub(k.diferencia);
   const varSub = k.variacion === null ? { text: 'Sin datos del mes anterior', cls: '' } : trendSub(k.diferencia);
 
@@ -483,16 +487,18 @@ async function handleSaveConfig() {
 
 // ---------- FILTROS: EVENTOS ----------
 function wireFilters() {
-  const ids = ['filterYear', 'filterMonth', 'filterFrom', 'filterTo', 'filterComercio', 'filterCategoria', 'filterMin', 'filterMax', 'filterTopN'];
+  const ids = ['filterYear', 'filterMonth', 'filterFrom', 'filterTo', 'filterComercio', 'filterCategoria'];
   ids.forEach((id) => $(id).addEventListener('input', () => {
     const filtered = applyFilters(allRecords);
+    renderKPIHeader();
     renderCharts(filtered);
     renderMovimientosTable(filtered);
   }));
 
   $('clearFiltersBtn').addEventListener('click', () => {
-    ids.forEach((id) => { $(id).value = id === 'filterTopN' ? '10' : ''; });
+    ids.forEach((id) => { $(id).value = ''; });
     const filtered = applyFilters(allRecords);
+    renderKPIHeader();
     renderCharts(filtered);
     renderMovimientosTable(filtered);
   });

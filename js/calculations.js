@@ -80,10 +80,12 @@ export function diferenciaYVariacion(gastoAnterior, gastoActual) {
   return { diferencia, variacion };
 }
 
-// KPIs de cabecera: SIEMPRE referidos al mes calendario real actual vs el anterior,
-// independientemente de los filtros del dashboard (así lo define la regla de negocio).
-export function computeHeaderKPIs(allRecords) {
-  const { year, month } = currentPeriod();
+// KPIs de cabecera. Por defecto usa el mes calendario real actual vs el
+// anterior. Si se pasa periodOverride (año/mes elegidos en la barra de
+// filtros), usa ese mes como "actual" en su lugar — y "records" ya debe venir
+// filtrado por comercio/categoría/fecha (todo excepto año/mes) desde ui.js.
+export function computeHeaderKPIs(allRecords, periodOverride) {
+  const { year, month } = periodOverride || currentPeriod();
   const prev = previousPeriod(year, month);
   const actual = filterByYearMonth(allRecords, year, month);
   const anterior = filterByYearMonth(allRecords, prev.year, prev.month);
