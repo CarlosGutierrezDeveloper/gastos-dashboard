@@ -163,6 +163,16 @@ function renderQueryResult() {
   ].join('');
 }
 
+// Restringe los registros al Año/Mes elegidos en "Consulta por Mes y Año".
+// Se aplica encima del filtro global (barra de filtros) solo para Top
+// comercios, el donut de Participación por Categoría y Detalle por comercio.
+function filterByQueryPeriod(records) {
+  const year = Number($('queryYear').value);
+  const month = Number($('queryMonth').value);
+  if (!year || !month) return records;
+  return records.filter((r) => r.year === year && r.month === month);
+}
+
 // ---------- GRÁFICAS ----------
 function renderCharts(filtered) {
   Charts.renderGastoDiario('chartGastoDiario', gastoPorDia(filtered));
@@ -170,12 +180,14 @@ function renderCharts(filtered) {
   Charts.renderComparativoMensual('chartComparativoMensual', gastoPorMes(filtered));
   Charts.renderComparativoAnual('chartComparativoAnual', gastoPorAno(filtered));
 
+  const porPeriodo = filterByQueryPeriod(filtered);
+
   const { topN } = currentFilters();
-  const ranking = rankingComercios(filtered, topN);
+  const ranking = rankingComercios(porPeriodo, topN);
   Charts.renderTopComercios('chartTopComercios', ranking.top);
   renderComerciosTable(ranking.all);
 
-  const categorias = gastoPorCategoria(filtered);
+  const categorias = gastoPorCategoria(porPeriodo);
   Charts.renderDonutCategorias('chartDonutCategorias', categorias.all);
 }
 
@@ -494,8 +506,14 @@ function wireFilters() {
     });
   });
 
-  $('queryYear').addEventListener('change', renderQueryResult);
-  $('queryMonth').addEventListener('change', renderQueryResult);
+  $('queryYear').addEventListener('change', () => {
+    renderQueryResult();
+    renderCharts(applyFilters(allRecords));
+  });
+  $('queryMonth').addEventListener('change', () => {
+    renderQueryResult();
+    renderCharts(applyFilters(allRecords));
+  });
 }
 
 function wireSortableHeaders() {
