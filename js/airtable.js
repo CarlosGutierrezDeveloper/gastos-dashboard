@@ -43,7 +43,7 @@ function mapRecord(r) {
     comercio: f['Comercio'] || '',
     valor: typeof f['Valor'] === 'number' ? f['Valor'] : Number(f['Valor']) || 0,
     categoria: f['Categoria'] || 'Otros',
-    aplicaCashback: f['AplicaCashback'] !== false,
+    aplicaCashback: f['AplicaCashback'] === true,
   };
 }
 
